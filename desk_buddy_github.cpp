@@ -2499,6 +2499,7 @@ void handleSave() {
     (fabsf(newLat - LAT) > 0.0001f) ||
     (fabsf(newLng - LNG) > 0.0001f) ||
     (newLoc != locationName);
+  bool timezoneChanged = (newTz != timezoneKey);
 
   notesText = newNotes;
   buddyNickname = newNickname;
@@ -2571,7 +2572,15 @@ void handleSave() {
   lastNextSunTime = "";
   lastUptimeText = "";
 
-  if (locationChanged) resetDataCaches();
+  if (locationChanged) {
+    resetDataCaches();
+  } else if (timezoneChanged) {
+    // Sunrise/sunset are stored as local minutes, so they must be refetched
+    // and converted again when only the timezone changes.
+    sunriseMin = -1;
+    sunsetMin = -1;
+    lastSunYmd = -1;
+  }
 
   server.sendHeader("Location", "/");
   server.send(303);
