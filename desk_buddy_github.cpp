@@ -1324,6 +1324,89 @@ void ensureWeather() {
   }
 }
 
+// Keeps only the last CAP bytes written to it, so a large response can be
+// streamed through HTTPClient without holding the whole body in memory.
+class TailCapture : public Stream {
+ public:
+  static const size_t CAP = 512;
+
+  size_t write(uint8_t b) override {
+    buf[total % CAP] = (char)b;
+    total++;
+    return 1;
+  }
+
+  size_t write(const uint8_t* data, size_t len) override {
+    for (size_t i = 0; i < len; i++) write(data[i]);
+    return len;
+  }
+
+  int available() override { return 0; }
+  int read() override { return -1; }
+  int peek() override { return -1; }
+
+  String tail() const {
+    size_t n = total < CAP ? total : CAP;
+    String out;
+    out.reserve(n);
+    for (size_t i = total - n; i < total; i++) out += buf[i % CAP];
+    return out;
+  }
+
+ private:
+  char buf[CAP];
+  size_t total = 0;
+};
+
+// Kp may arrive as a number or a numeric string depending on the feed format.
+static bool parseKpValue(JsonVariantConst v, float& out) {
+  double value;
+  if (v.is<const char*>()) {
+    const char* s = v.as<const char*>();
+    char* end = nullptr;
+    value = strtod(s, &end);
+    if (end == s || *end != '\0') return false;
+  } else if (v.is<float>()) {
+    value = v.as<float>();
+  } else {
+    return false;
+  }
+
+  if (!(value >= 0.0 && value <= 9.0)) return false;
+  out = (float)value;
+  return true;
+}
+
+// The NOAA feed lists readings oldest to newest, so the last row is the
+// current one. Supports both row layouts:
+//   [["time_tag","Kp",...], ["2026-01-01 00:00:00.000","1.67",...], ...]
+//   [{"time_tag":"...","Kp":1.67,...}, ...]
+static bool parseKpFromTail(const String& tail, float& out) {
+  if (tail.indexOf('{') >= 0) {
+    int close = tail.lastIndexOf('}');
+    int open = close > 0 ? tail.lastIndexOf('{', close) : -1;
+    if (open < 0 || close <= open) return false;
+
+    StaticJsonDocument<64> filter;
+    filter["Kp"] = true;
+    StaticJsonDocument<256> doc;
+    if (deserializeJson(doc, tail.substring(open, close + 1), DeserializationOption::Filter(filter))) return false;
+
+    JsonVariant kp = doc["Kp"];
+    return parseKpValue(kp, out);
+  }
+
+  int open = tail.lastIndexOf('[');
+  int close = open >= 0 ? tail.indexOf(']', open) : -1;
+  if (open < 0 || close < 0) return false;
+
+  StaticJsonDocument<256> doc;
+  if (deserializeJson(doc, tail.substring(open, close + 1))) return false;
+
+  JsonVariant kp = doc[1];
+  return parseKpValue(kp, out);
+}
+
 bool fetchKpIndex() {
   if (WiFi.status() != WL_CONNECTED) return false;
 
@@ -1341,22 +1424,14 @@ bool fetchKpIndex() {
     return false;
   }
 
-  String body = http.getString();
+  TailCapture capture;
+  int written = http.writeToStream(&capture);
   http.end();
+  if (written <= 0) return false;
 
-  int lastRow = body.lastIndexOf('[');
-  if (lastRow < 0) return false;
-
-  int firstComma = body.indexOf(',', lastRow);
-  if (firstComma < 0) return false;
-
-  int q1 = body.indexOf('"', firstComma);
-  if (q1 < 0) return false;
-  int q2 = body.indexOf('"', q1 + 1);
-  if (q2 < 0) return false;
-
-  String kpStrLocal = body.substring(q1 + 1, q2);
-  kpIndex = kpStrLocal.toFloat();
+  float kp;
+  if (!parseKpFromTail(capture.tail(), kp)) return false;
+  kpIndex = kp;
 
   lastKpFetch = time(nullptr);
   lastSyncTime = lastKpFetch;
