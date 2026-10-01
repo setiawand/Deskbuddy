@@ -1832,6 +1832,26 @@ void drawHomeSlotWidget(int slot, bool force = false) {
   }
 }
 
+// Timer popup layout, shared by drawing and touch hit-testing so they cannot drift apart.
+static const int TIMER_BTN_W = 74;
+static const int TIMER_BTN_H = 28;
+static const int TIMER_ACTION_W = 152;
+static const int TIMER_ACTION_H = 26;
+
+static void timerPresetRect(int i, int& x, int& y, int& w, int& h) {
+  x = TIMER_MENU_X + ((i % 2 == 0) ? 14 : 112);
+  y = TIMER_MENU_Y + 54 + (i / 2) * 34;
+  w = TIMER_BTN_W;
+  h = TIMER_BTN_H;
+}
+
+static void timerActionRect(int& x, int& y, int& w, int& h) {
+  x = TIMER_MENU_X + 24;
+  y = TIMER_MENU_Y + 156;
+  w = TIMER_ACTION_W;
+  h = TIMER_ACTION_H;
+}
+
 void drawFocusMenuOverlay(bool force = false) {
   String combined = String(focusTimerRunning ? 1 : 0) + "|" + String(focusTimerFinished ? 1 : 0) +
                     "|" + String(COL_PANEL_ALT) + "|" + String(COL_PANEL) + "|" + String(COL_ACCENT);
@@ -1847,39 +1867,26 @@ void drawFocusMenuOverlay(bool force = false) {
   tft.setTextColor(COL_DIM, COL_PANEL_ALT);
   tft.drawString("Choose a session length", TIMER_MENU_X + 14, TIMER_MENU_Y + 34, 1);
 
-  const int btnW = 74;
-  const int btnH = 28;
-  const int col1X = TIMER_MENU_X + 14;
-  const int col2X = TIMER_MENU_X + 112;
-  const int row1Y = TIMER_MENU_Y + 54;
-  const int row2Y = TIMER_MENU_Y + 88;
-  const int row3Y = TIMER_MENU_Y + 122;
-
-  String labels[6];
-  const int xs[] = {col1X, col2X, col1X, col2X, col1X, col2X};
-  const int ys[] = {row1Y, row1Y, row2Y, row2Y, row3Y, row3Y};
   for (int i = 0; i < 6; i++) {
-    labels[i] = String(timerPresetMin[i]) + " min";
-  }
-
-  for (int i = 0; i < 6; i++) {
-    tft.fillRoundRect(xs[i], ys[i], btnW, btnH, 8, COL_PANEL);
-    tft.drawRoundRect(xs[i], ys[i], btnW, btnH, 8, COL_STROKE);
+    int bx, by, bw, bh;
+    timerPresetRect(i, bx, by, bw, bh);
+    String label = String(timerPresetMin[i]) + " min";
+    tft.fillRoundRect(bx, by, bw, bh, 8, COL_PANEL);
+    tft.drawRoundRect(bx, by, bw, bh, 8, COL_STROKE);
     tft.setTextColor(COL_TEXT, COL_PANEL);
-    tft.drawCentreString(labels[i].c_str(), xs[i] + btnW / 2, ys[i] + 7, 2);
+    tft.drawCentreString(label.c_str(), bx + bw / 2, by + 7, 2);
   }
 
-  const int actionY = TIMER_MENU_Y + 160;
-  const int actionW = 152;
-  const int actionX = TIMER_MENU_X + 24;
+  int actionX, actionBoxY, actionW, actionH;
+  timerActionRect(actionX, actionBoxY, actionW, actionH);
   const char* actionLabel = focusTimerRunning ? "Stop" : (focusTimerFinished ? "Reset" : nullptr);
   uint16_t actionColor = focusTimerRunning ? COL_RED : COL_ACCENT;
 
   if (actionLabel) {
-    tft.fillRoundRect(actionX, actionY - 4, actionW, 26, 8, COL_PANEL);
-    tft.drawRoundRect(actionX, actionY - 4, actionW, 26, 8, actionColor);
+    tft.fillRoundRect(actionX, actionBoxY, actionW, actionH, 8, COL_PANEL);
+    tft.drawRoundRect(actionX, actionBoxY, actionW, actionH, 8, actionColor);
     tft.setTextColor(actionColor, COL_PANEL);
-    tft.drawCentreString(actionLabel, actionX + actionW / 2, actionY + 4, 2);
+    tft.drawCentreString(actionLabel, actionX + actionW / 2, actionBoxY + 8, 2);
   } else {
     tft.setTextColor(COL_DIM, COL_PANEL_ALT);
     tft.drawCentreString("Tap outside to close", TIMER_MENU_X + TIMER_MENU_W / 2, TIMER_MENU_Y + TIMER_MENU_H - 13, 1);
@@ -2228,38 +2235,20 @@ bool handleFocusMenuTouch(int x, int y) {
     return true;
   }
 
-  struct ButtonHit {
-    int x;
-    int y;
-    int w;
-    int h;
-    int minutes;
-  };
-
-  const ButtonHit buttons[] = {
-    {34, 124, 74, 28, timerPresetMin[0]},
-    {132, 124, 74, 28, timerPresetMin[1]},
-    {34, 158, 74, 28, timerPresetMin[2]},
-    {132, 158, 74, 28, timerPresetMin[3]},
-    {34, 192, 74, 28, timerPresetMin[4]},
-    {132, 192, 74, 28, timerPresetMin[5]}
-  };
-
-  for (const ButtonHit& btn : buttons) {
-    if (x >= btn.x && x < btn.x + btn.w && y >= btn.y && y < btn.y + btn.h) {
-      startFocusTimer(btn.minutes);
+  for (int i = 0; i < 6; i++) {
+    int bx, by, bw, bh;
+    timerPresetRect(i, bx, by, bw, bh);
+    if (x >= bx && x < bx + bw && y >= by && y < by + bh) {
+      startFocusTimer(timerPresetMin[i]);
       pageDirty = true;
       return true;
     }
   }
 
-  if ((focusTimerRunning || focusTimerFinished) && x >= 44 && x < 196 && y >= 224 && y < 250) {
-    if (focusTimerRunning || focusTimerFinished) {
-      resetFocusTimer();
-    } else {
-      focusMenuOpen = false;
-      cacheTimerMenu = "";
-    }
+  int ax, ay, aw, ah;
+  timerActionRect(ax, ay, aw, ah);
+  if ((focusTimerRunning || focusTimerFinished) && x >= ax && x < ax + aw && y >= ay && y < ay + ah) {
+    resetFocusTimer();
     pageDirty = true;
     return true;
   }
