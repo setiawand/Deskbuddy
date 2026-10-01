@@ -2459,6 +2459,23 @@ void handleRoot() {
   server.send(200, "text/html; charset=utf-8", page);
 }
 
+// Parses a coordinate from a form field. Returns false (and leaves `out`
+// untouched) for empty, non-numeric or out-of-range input.
+static bool parseCoordinate(const String& raw, float minValue, float maxValue, float& out) {
+  String s = raw;
+  s.trim();
+  s.replace(',', '.');
+  if (s.length() == 0) return false;
+
+  char* end = nullptr;
+  double value = strtod(s.c_str(), &end);
+  if (end == s.c_str() || *end != '\0') return false;
+  if (isnan(value) || value < minValue || value > maxValue) return false;
+
+  out = (float)value;
+  return true;
+}
+
 void handleSave() {
   String newNotes  = server.hasArg("notes") ? server.arg("notes") : notesText;
   String newAccent = sanitizeAccentKey(server.hasArg("accent") ? server.arg("accent") : "cyan");
@@ -2476,8 +2493,10 @@ void handleSave() {
     newHomeSlots[i] = homeWidgetFromKey(server.hasArg(key) ? server.arg(key) : currentKey);
   }
 
-  float newLat = server.hasArg("lat") ? server.arg("lat").toFloat() : LAT;
-  float newLng = server.hasArg("lng") ? server.arg("lng").toFloat() : LNG;
+  float newLat = LAT;
+  float newLng = LNG;
+  if (server.hasArg("lat")) parseCoordinate(server.arg("lat"), -90.0f, 90.0f, newLat);
+  if (server.hasArg("lng")) parseCoordinate(server.arg("lng"), -180.0f, 180.0f, newLng);
 
   newNotes.trim();
   newLoc.trim();
