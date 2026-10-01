@@ -448,6 +448,36 @@ static int sunsetMin  = -1;
 static int lastSunYmd = -1;
 static time_t lastSyncTime = 0;
 
+// Network fetches block loop(), so keep timeouts short and back off after
+// failures instead of retrying (and freezing the UI) on every data tick.
+static const uint16_t HTTP_TIMEOUT_MS = 4000;
+
+struct FetchBackoff {
+  time_t nextTry = 0;
+  uint8_t failures = 0;
+
+  bool due(time_t now) const { return now >= nextTry; }
+
+  void record(bool ok, time_t now) {
+    if (ok) {
+      failures = 0;
+      nextTry = now;
+      return;
+    }
+    if (failures < 4) failures++;
+    nextTry = now + (time_t)(30UL << failures);  // 60s, 120s, 240s, then 480s
+  }
+
+  void reset() {
+    failures = 0;
+    nextTry = 0;
+  }
+};
+
+static FetchBackoff sunBackoff;
+static FetchBackoff weatherBackoff;
+static FetchBackoff kpBackoff;
+
 // =========================================================
 // SLEEP / BACKLIGHT
 // =========================================================
@@ -1068,6 +1098,9 @@ void resetDataCaches() {
   lastSunYmd = -1;
   lastWeatherFetch = 0;
   lastKpFetch = 0;
+  sunBackoff.reset();
+  weatherBackoff.reset();
+  kpBackoff.reset();
   dataDirty = true;
   pageDirty = true;
 }
@@ -1122,6 +1155,13 @@ bool touchNewPress(int& tx, int& ty) {
 // =========================================================
 // API
 // =========================================================
+static bool beginHttp(HTTPClient& http, WiFiClientSecure& client, const String& url) {
+  client.setTimeout(HTTP_TIMEOUT_MS / 1000);  // seconds on WiFiClientSecure
+  http.setConnectTimeout(HTTP_TIMEOUT_MS);
+  http.setTimeout(HTTP_TIMEOUT_MS);
+  return http.begin(client, url);
+}
+
 bool fetchSunriseSunset() {
   if (WiFi.status() != WL_CONNECTED) return false;
 
@@ -1132,7 +1172,7 @@ bool fetchSunriseSunset() {
                "&lng=" + String(LNG, 4) + "&formatted=0";
 
   HTTPClient http;
-  if (!http.begin(client, url)) return false;
+  if (!beginHttp(http, client, url)) return false;
 
   int code = http.GET();
   if (code != 200) {
@@ -1192,8 +1232,10 @@ void ensureSunTimesForToday() {
   int ymd = ymdFromLocal(nowT);
 
   if ((sunriseMin < 0 || sunsetMin < 0 || ymd != lastSunYmd) &&
-      WiFi.status() == WL_CONNECTED) {
-    if (fetchSunriseSunset()) dataDirty = true;
+      WiFi.status() == WL_CONNECTED && sunBackoff.due(nowT)) {
+    bool ok = fetchSunriseSunset();
+    sunBackoff.record(ok, time(nullptr));
+    if (ok) dataDirty = true;
   }
 }
 
@@ -1211,7 +1253,7 @@ bool fetchWeather() {
                "&forecast_days=1&timezone=auto&wind_speed_unit=ms";
 
   HTTPClient http;
-  if (!http.begin(client, url)) return false;
+  if (!beginHttp(http, client, url)) return false;
 
   int code = http.GET();
   if (code != 200) {
@@ -1269,8 +1311,10 @@ void ensureWeather() {
   time_t nowT = time(nullptr);
   if ((isnan(tempC) || isnan(tempMinC) || isnan(tempMaxC) || isnan(precipMm) || isnan(windSpeedMs) || isnan(windDirectionDeg) || isnan(uvIndex) ||
        (nowT - lastWeatherFetch) > WEATHER_INTERVAL_SEC) &&
-      WiFi.status() == WL_CONNECTED) {
-    if (fetchWeather()) dataDirty = true;
+      WiFi.status() == WL_CONNECTED && weatherBackoff.due(nowT)) {
+    bool ok = fetchWeather();
+    weatherBackoff.record(ok, time(nullptr));
+    if (ok) dataDirty = true;
   }
 }
 
@@ -1281,7 +1325,7 @@ bool fetchKpIndex() {
   client.setInsecure();
 
   HTTPClient http;
-  if (!http.begin(client, "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json")) {
+  if (!beginHttp(http, client, "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json")) {
     return false;
   }
 
@@ -1316,8 +1360,10 @@ bool fetchKpIndex() {
 void ensureKpIndex() {
   time_t nowT = time(nullptr);
   if ((isnan(kpIndex) || (nowT - lastKpFetch) > KP_INTERVAL_SEC) &&
-      WiFi.status() == WL_CONNECTED) {
-    if (fetchKpIndex()) dataDirty = true;
+      WiFi.status() == WL_CONNECTED && kpBackoff.due(nowT)) {
+    bool ok = fetchKpIndex();
+    kpBackoff.record(ok, time(nullptr));
+    if (ok) dataDirty = true;
   }
 }
 
