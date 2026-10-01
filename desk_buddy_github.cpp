@@ -252,81 +252,75 @@ const char* homeSlotLabel(int slot) {
   }
 }
 
+// Single source of truth for the supported time zones. Entries are ordered by
+// group; the settings page emits one <optgroup> per run of equal group names.
+struct TimezoneInfo {
+  const char* key;
+  const char* label;
+  const char* posix;
+  const char* group;
+};
+
+static const char* const DEFAULT_TIMEZONE_KEY = "europe_central";
+
+static const TimezoneInfo TIMEZONES[] = {
+  {"utc",              "UTC",               "UTC0",                           "Global"},
+
+  {"atlantic_azores",  "Azores",            "AZOT1AZOST,M3.5.0/0,M10.5.0/1",  "Europe"},
+  {"europe_west",      "Western Europe",    "WET0WEST,M3.5.0/1,M10.5.0",      "Europe"},
+  {"uk",               "United Kingdom",    "GMT0BST,M3.5.0/1,M10.5.0",       "Europe"},
+  {"europe_central",   "Central Europe",    "CET-1CEST,M3.5.0/2,M10.5.0/3",   "Europe"},
+  {"europe_east",      "Eastern Europe",    "EET-2EEST,M3.5.0/3,M10.5.0/4",   "Europe"},
+
+  {"africa_south",     "South Africa",      "SAST-2",                         "Africa & Middle East"},
+  {"middle_east_gulf", "Gulf / UAE",        "GST-4",                          "Africa & Middle East"},
+
+  {"india",            "India",             "IST-5:30",                       "Asia"},
+  {"thailand",         "Thailand / ICT",    "ICT-7",                          "Asia"},
+  {"china",            "China",             "CST-8",                          "Asia"},
+  {"asia_tokyo",       "Japan",             "JST-9",                          "Asia"},
+  {"korea",            "South Korea",       "KST-9",                          "Asia"},
+
+  {"us_eastern",       "US Eastern",        "EST5EDT,M3.2.0/2,M11.1.0/2",     "North America"},
+  {"us_central",       "US Central",        "CST6CDT,M3.2.0/2,M11.1.0/2",     "North America"},
+  {"us_mountain",      "US Mountain",       "MST7MDT,M3.2.0/2,M11.1.0/2",     "North America"},
+  {"us_arizona",       "US Arizona",        "MST7",                           "North America"},
+  {"us_pacific",       "US Pacific",        "PST8PDT,M3.2.0/2,M11.1.0/2",     "North America"},
+  {"alaska",           "Alaska",            "AKST9AKDT,M3.2.0/2,M11.1.0/2",   "North America"},
+  {"hawaii",           "Hawaii",            "HST10",                          "North America"},
+  {"canada_atlantic",  "Canada Atlantic",   "AST4ADT,M3.2.0/2,M11.1.0/2",     "North America"},
+
+  {"brazil_east",      "Brazil East",       "BRT3",                           "South America"},
+  {"argentina",        "Argentina",         "ART3",                           "South America"},
+
+  {"australia_perth",  "Australia West",    "AWST-8",                         "Australia & Oceania"},
+  {"australia_darwin", "Australia Central", "ACST-9:30",                      "Australia & Oceania"},
+  {"australia_sydney", "Australia East",    "AEST-10AEDT,M10.1.0,M4.1.0/3",   "Australia & Oceania"},
+  {"new_zealand",      "New Zealand",       "NZST-12NZDT,M9.5.0/2,M4.1.0/3",  "Australia & Oceania"}
+};
+
+static const TimezoneInfo* findTimezone(const String& key) {
+  for (const TimezoneInfo& tz : TIMEZONES) {
+    if (key == tz.key) return &tz;
+  }
+  return nullptr;
+}
+
+static const TimezoneInfo& timezoneOrDefault(const String& key) {
+  const TimezoneInfo* tz = findTimezone(key);
+  return tz ? *tz : *findTimezone(DEFAULT_TIMEZONE_KEY);
+}
+
 const char* timezonePosixByKey(const String& key) {
-  if (key == "utc") return "UTC0";
-  if (key == "atlantic_azores") return "AZOT1AZOST,M3.5.0/0,M10.5.0/1";
-  if (key == "europe_west") return "WET0WEST,M3.5.0/1,M10.5.0";
-  if (key == "uk") return "GMT0BST,M3.5.0/1,M10.5.0";
-  if (key == "europe_central") return "CET-1CEST,M3.5.0/2,M10.5.0/3";
-  if (key == "europe_east") return "EET-2EEST,M3.5.0/3,M10.5.0/4";
-  if (key == "africa_south") return "SAST-2";
-  if (key == "middle_east_gulf") return "GST-4";
-  if (key == "india") return "IST-5:30";
-  if (key == "thailand") return "ICT-7";
-  if (key == "china") return "CST-8";
-  if (key == "us_eastern") return "EST5EDT,M3.2.0/2,M11.1.0/2";
-  if (key == "us_central") return "CST6CDT,M3.2.0/2,M11.1.0/2";
-  if (key == "us_mountain") return "MST7MDT,M3.2.0/2,M11.1.0/2";
-  if (key == "us_arizona") return "MST7";
-  if (key == "us_pacific") return "PST8PDT,M3.2.0/2,M11.1.0/2";
-  if (key == "alaska") return "AKST9AKDT,M3.2.0/2,M11.1.0/2";
-  if (key == "hawaii") return "HST10";
-  if (key == "canada_atlantic") return "AST4ADT,M3.2.0/2,M11.1.0/2";
-  if (key == "brazil_east") return "BRT3";
-  if (key == "argentina") return "ART3";
-  if (key == "asia_tokyo") return "JST-9";
-  if (key == "korea") return "KST-9";
-  if (key == "australia_perth") return "AWST-8";
-  if (key == "australia_darwin") return "ACST-9:30";
-  if (key == "australia_sydney") return "AEST-10AEDT,M10.1.0,M4.1.0/3";
-  if (key == "new_zealand") return "NZST-12NZDT,M9.5.0/2,M4.1.0/3";
-  return "CET-1CEST,M3.5.0/2,M10.5.0/3";
+  return timezoneOrDefault(key).posix;
 }
 
 const char* timezoneLabelByKey(const String& key) {
-  if (key == "utc") return "UTC";
-  if (key == "atlantic_azores") return "Azores";
-  if (key == "europe_west") return "Western Europe";
-  if (key == "uk") return "United Kingdom";
-  if (key == "europe_central") return "Central Europe";
-  if (key == "europe_east") return "Eastern Europe";
-  if (key == "africa_south") return "South Africa";
-  if (key == "middle_east_gulf") return "Gulf / UAE";
-  if (key == "india") return "India";
-  if (key == "thailand") return "Thailand / ICT";
-  if (key == "china") return "China";
-  if (key == "us_eastern") return "US Eastern";
-  if (key == "us_central") return "US Central";
-  if (key == "us_mountain") return "US Mountain";
-  if (key == "us_arizona") return "US Arizona";
-  if (key == "us_pacific") return "US Pacific";
-  if (key == "alaska") return "Alaska";
-  if (key == "hawaii") return "Hawaii";
-  if (key == "canada_atlantic") return "Canada Atlantic";
-  if (key == "brazil_east") return "Brazil East";
-  if (key == "argentina") return "Argentina";
-  if (key == "asia_tokyo") return "Japan";
-  if (key == "korea") return "South Korea";
-  if (key == "australia_perth") return "Australia West";
-  if (key == "australia_darwin") return "Australia Central";
-  if (key == "australia_sydney") return "Australia East";
-  if (key == "new_zealand") return "New Zealand";
-  return "Central Europe";
+  return timezoneOrDefault(key).label;
 }
 
 String sanitizeTimezoneKey(const String& key) {
-  const char* supported[] = {
-    "utc", "atlantic_azores", "europe_west", "uk", "europe_central", "europe_east",
-    "africa_south", "middle_east_gulf", "india", "thailand", "china",
-    "us_eastern", "us_central", "us_mountain", "us_arizona", "us_pacific",
-    "alaska", "hawaii", "canada_atlantic", "brazil_east", "argentina",
-    "asia_tokyo", "korea", "australia_perth", "australia_darwin",
-    "australia_sydney", "new_zealand"
-  };
-  for (const char* supportedKey : supported) {
-    if (key == supportedKey) return key;
-  }
-  return "europe_central";
+  return String(timezoneOrDefault(key).key);
 }
 
 void applyDeviceTimezoneByKey(const String& key) {
@@ -336,38 +330,26 @@ void applyDeviceTimezoneByKey(const String& key) {
 }
 
 void appendTimezoneOptions(String& page, const String& selectedKey) {
-  struct TimezoneGroup {
-    const char* label;
-    const char* keys[8];
-    int count;
-  };
+  const char* currentGroup = nullptr;
 
-  const TimezoneGroup groups[] = {
-    {"Global", {"utc"}, 1},
-    {"Europe", {"atlantic_azores", "europe_west", "uk", "europe_central", "europe_east"}, 5},
-    {"Africa & Middle East", {"africa_south", "middle_east_gulf"}, 2},
-    {"Asia", {"india", "thailand", "china", "asia_tokyo", "korea"}, 5},
-    {"North America", {"us_eastern", "us_central", "us_mountain", "us_arizona", "us_pacific", "alaska", "hawaii", "canada_atlantic"}, 8},
-    {"South America", {"brazil_east", "argentina"}, 2},
-    {"Australia & Oceania", {"australia_perth", "australia_darwin", "australia_sydney", "new_zealand"}, 4}
-  };
-
-  for (const TimezoneGroup& group : groups) {
-    page += "<optgroup label='";
-    page += group.label;
-    page += "'>";
-    for (int i = 0; i < group.count; i++) {
-      const char* key = group.keys[i];
-      page += "<option value='";
-      page += key;
-      page += "'";
-      if (selectedKey == key) page += " selected";
-      page += ">";
-      page += timezoneLabelByKey(key);
-      page += "</option>";
+  for (const TimezoneInfo& tz : TIMEZONES) {
+    if (!currentGroup || strcmp(currentGroup, tz.group) != 0) {
+      if (currentGroup) page += "</optgroup>";
+      page += "<optgroup label='";
+      page += tz.group;
+      page += "'>";
+      currentGroup = tz.group;
     }
-    page += "</optgroup>";
+    page += "<option value='";
+    page += tz.key;
+    page += "'";
+    if (selectedKey == tz.key) page += " selected";
+    page += ">";
+    page += tz.label;
+    page += "</option>";
   }
+
+  if (currentGroup) page += "</optgroup>";
 }
 
 void getHomeSlotRect(int slot, int& x, int& y, int& w, int& h) {
