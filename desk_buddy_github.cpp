@@ -1183,8 +1183,14 @@ bool fetchSunriseSunset() {
   String body = http.getString();
   http.end();
 
-  StaticJsonDocument<1024> doc;
-  if (deserializeJson(doc, body)) return false;
+  // Keep only the two fields we use so the document can't run out of memory
+  // when the API adds or lengthens other fields (twilight times, day length...).
+  StaticJsonDocument<64> filter;
+  filter["results"]["sunrise"] = true;
+  filter["results"]["sunset"] = true;
+
+  StaticJsonDocument<512> doc;
+  if (deserializeJson(doc, body, DeserializationOption::Filter(filter))) return false;
 
   const char* sunriseStr = doc["results"]["sunrise"];
   const char* sunsetStr  = doc["results"]["sunset"];
