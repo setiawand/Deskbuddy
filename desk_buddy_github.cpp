@@ -469,6 +469,8 @@ const int FLASH_BL_LOW = 20;
 const int FLASH_BL_HIGH = 255;
 
 void wakeDisplay(bool clearManualMode = true);
+void setBacklight(int value);
+void setWifiEnabled(bool enabled);
 
 int sanitizeTimerMinutes(int value);
 
