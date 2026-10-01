@@ -469,6 +469,8 @@ const int FLASH_BL_LOW = 20;
 const int FLASH_BL_HIGH = 255;
 
 void wakeDisplay(bool clearManualMode = true);
+void setBacklight(int value);
+void setWifiEnabled(bool enabled);
 
 int sanitizeTimerMinutes(int value);
 
@@ -913,6 +915,37 @@ void handleAutoSleep() {
 // =========================================================
 // THEME / SETTINGS
 // =========================================================
+static String sanitizeKey(const String& key, const char* const* allowed, int count, const char* fallback) {
+  for (int i = 0; i < count; i++) {
+    if (key == allowed[i]) return key;
+  }
+  return fallback;
+}
+
+static String sanitizeAccentKey(const String& key) {
+  static const char* const allowed[] = {
+    "standard", "ice", "white", "cyan", "mint", "green",
+    "blue", "purple", "pink", "orange", "amber", "red"
+  };
+  return sanitizeKey(key, allowed, sizeof(allowed) / sizeof(allowed[0]), "cyan");
+}
+
+static String sanitizeTextColorKey(const String& key) {
+  static const char* const allowed[] = {
+    "standard", "ice", "white", "cyan", "mint", "green",
+    "blue", "purple", "pink", "orange", "amber", "red"
+  };
+  return sanitizeKey(key, allowed, sizeof(allowed) / sizeof(allowed[0]), "standard");
+}
+
+static String sanitizeBgKey(const String& key) {
+  static const char* const allowed[] = {
+    "slate", "deep", "nordic", "forest", "coffee",
+    "soft", "midnight", "graphite", "garnet", "ochre"
+  };
+  return sanitizeKey(key, allowed, sizeof(allowed) / sizeof(allowed[0]), "slate");
+}
+
 void applyThemeByKey(const String& accentKey, const String& bgKey) {
   if (accentKey == "standard")    COL_ACCENT = 0xEF7D;
   else if (accentKey == "cyan")   COL_ACCENT = 0x5EFA;
@@ -990,9 +1023,9 @@ void applyTextColorByKey(const String& key) {
 void loadStoredSettings() {
   prefs.begin("deskbuddy", false);
 
-  String accent = prefs.getString("accent", "cyan");
-  String bg     = prefs.getString("bg", "slate");
-  String txt    = prefs.getString("text", "standard");
+  String accent = sanitizeAccentKey(prefs.getString("accent", "cyan"));
+  String bg     = sanitizeBgKey(prefs.getString("bg", "slate"));
+  String txt    = sanitizeTextColorKey(prefs.getString("text", "standard"));
 
   notesText        = prefs.getString("notes", "No notes yet.");
   buddyNickname    = prefs.getString("nickname", "");
@@ -2175,9 +2208,9 @@ void handleNavTouch(int x, int y) {
 // WEB SERVER
 // =========================================================
 void handleRoot() {
-  String accent = prefs.getString("accent", "cyan");
-  String bg     = prefs.getString("bg", "slate");
-  String txt    = prefs.getString("text", "standard");
+  String accent = sanitizeAccentKey(prefs.getString("accent", "cyan"));
+  String bg     = sanitizeBgKey(prefs.getString("bg", "slate"));
+  String txt    = sanitizeTextColorKey(prefs.getString("text", "standard"));
   String units  = prefs.getString("units", "metric");
   String region = prefs.getString("region", "europe");
   String tz     = sanitizeTimezoneKey(prefs.getString("tz", "europe_central"));
@@ -2275,7 +2308,7 @@ void handleRoot() {
   page += "<div style='grid-column:1 / -1;' class='color-stack'>";
 
   page += "<div class='color-row'><div class='color-meta'><label class='label'>Accent</label><span class='color-value' id='accent-value'>";
-  page += accent;
+  page += htmlEscape(accent);
   page += "</span></div><div class='swatch-row'>";
   page += "<label class='swatch" + String(accent=="standard"?" active":"") + "' style='background:" + accentPreviewCss("standard") + ";'><input type='radio' name='accent' value='standard'" + String(accent=="standard"?" checked":"") + "></label>";
   page += "<label class='swatch" + String(accent=="ice"?" active":"") + "' style='background:" + accentPreviewCss("ice") + ";'><input type='radio' name='accent' value='ice'" + String(accent=="ice"?" checked":"") + "></label>";
@@ -2292,7 +2325,7 @@ void handleRoot() {
   page += "</div></div>";
 
   page += "<div class='color-row'><div class='color-meta'><label class='label'>Text</label><span class='color-value' id='text-value'>";
-  page += txt;
+  page += htmlEscape(txt);
   page += "</span></div><div class='swatch-row'>";
   page += "<label class='swatch" + String(txt=="standard"?" active":"") + "' style='background:" + accentPreviewCss("standard") + ";'><input type='radio' name='text' value='standard'" + String(txt=="standard"?" checked":"") + "></label>";
   page += "<label class='swatch" + String(txt=="ice"?" active":"") + "' style='background:" + accentPreviewCss("ice") + ";'><input type='radio' name='text' value='ice'" + String(txt=="ice"?" checked":"") + "></label>";
@@ -2309,7 +2342,7 @@ void handleRoot() {
   page += "</div></div>";
 
   page += "<div class='color-row'><div class='color-meta'><label class='label'>Theme</label><span class='color-value' id='bg-value'>";
-  page += bg;
+  page += htmlEscape(bg);
   page += "</span></div><div class='swatch-row'>";
   page += "<label class='swatch" + String(bg=="slate"?" active":"") + "' style='background:" + themePreviewCss("slate") + ";'><input type='radio' name='bg' value='slate'" + String(bg=="slate"?" checked":"") + "></label>";
   page += "<label class='swatch" + String(bg=="deep"?" active":"") + "' style='background:" + themePreviewCss("deep") + ";'><input type='radio' name='bg' value='deep'" + String(bg=="deep"?" checked":"") + "></label>";
@@ -2426,11 +2459,28 @@ void handleRoot() {
   server.send(200, "text/html; charset=utf-8", page);
 }
 
+// Parses a coordinate from a form field. Returns false (and leaves `out`
+// untouched) for empty, non-numeric or out-of-range input.
+static bool parseCoordinate(const String& raw, float minValue, float maxValue, float& out) {
+  String s = raw;
+  s.trim();
+  s.replace(',', '.');
+  if (s.length() == 0) return false;
+
+  char* end = nullptr;
+  double value = strtod(s.c_str(), &end);
+  if (end == s.c_str() || *end != '\0') return false;
+  if (isnan(value) || value < minValue || value > maxValue) return false;
+
+  out = (float)value;
+  return true;
+}
+
 void handleSave() {
   String newNotes  = server.hasArg("notes") ? server.arg("notes") : notesText;
-  String newAccent = server.hasArg("accent") ? server.arg("accent") : "cyan";
-  String newBg     = server.hasArg("bg") ? server.arg("bg") : "slate";
-  String newText   = server.hasArg("text") ? server.arg("text") : "standard";
+  String newAccent = sanitizeAccentKey(server.hasArg("accent") ? server.arg("accent") : "cyan");
+  String newBg     = sanitizeBgKey(server.hasArg("bg") ? server.arg("bg") : "slate");
+  String newText   = sanitizeTextColorKey(server.hasArg("text") ? server.arg("text") : "standard");
   String newUnits  = server.hasArg("units") ? server.arg("units") : "metric";
   String newRegion = server.hasArg("region") ? server.arg("region") : "europe";
   String newTz     = server.hasArg("tz") ? server.arg("tz") : timezoneKey;
@@ -2443,8 +2493,10 @@ void handleSave() {
     newHomeSlots[i] = homeWidgetFromKey(server.hasArg(key) ? server.arg(key) : currentKey);
   }
 
-  float newLat = server.hasArg("lat") ? server.arg("lat").toFloat() : LAT;
-  float newLng = server.hasArg("lng") ? server.arg("lng").toFloat() : LNG;
+  float newLat = LAT;
+  float newLng = LNG;
+  if (server.hasArg("lat")) parseCoordinate(server.arg("lat"), -90.0f, 90.0f, newLat);
+  if (server.hasArg("lng")) parseCoordinate(server.arg("lng"), -180.0f, 180.0f, newLng);
 
   newNotes.trim();
   newLoc.trim();
@@ -2466,6 +2518,7 @@ void handleSave() {
     (fabsf(newLat - LAT) > 0.0001f) ||
     (fabsf(newLng - LNG) > 0.0001f) ||
     (newLoc != locationName);
+  bool timezoneChanged = (newTz != timezoneKey);
 
   notesText = newNotes;
   buddyNickname = newNickname;
@@ -2538,7 +2591,15 @@ void handleSave() {
   lastNextSunTime = "";
   lastUptimeText = "";
 
-  if (locationChanged) resetDataCaches();
+  if (locationChanged) {
+    resetDataCaches();
+  } else if (timezoneChanged) {
+    // Sunrise/sunset are stored as local minutes, so they must be refetched
+    // and converted again when only the timezone changes.
+    sunriseMin = -1;
+    sunsetMin = -1;
+    lastSunYmd = -1;
+  }
 
   server.sendHeader("Location", "/");
   server.send(303);
