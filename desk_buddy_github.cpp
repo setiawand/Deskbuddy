@@ -280,6 +280,9 @@ static const TimezoneInfo TIMEZONES[] = {
   {"china",            "China",             "CST-8",                          "Asia"},
   {"asia_tokyo",       "Japan",             "JST-9",                          "Asia"},
   {"korea",            "South Korea",       "KST-9",                          "Asia"},
+  {"indonesia_wib",    "Indonesia (WIB)",   "WIB-7",                          "Asia"},
+  {"indonesia_wita",   "Indonesia (WITA)",  "WITA-8",                         "Asia"},
+  {"indonesia_wit",    "Indonesia (WIT)",   "WIT-9",                          "Asia"},
 
   {"us_eastern",       "US Eastern",        "EST5EDT,M3.2.0/2,M11.1.0/2",     "North America"},
   {"us_central",       "US Central",        "CST6CDT,M3.2.0/2,M11.1.0/2",     "North America"},
