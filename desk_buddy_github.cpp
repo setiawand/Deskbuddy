@@ -252,81 +252,78 @@ const char* homeSlotLabel(int slot) {
   }
 }
 
+// Single source of truth for the supported time zones. Entries are ordered by
+// group; the settings page emits one <optgroup> per run of equal group names.
+struct TimezoneInfo {
+  const char* key;
+  const char* label;
+  const char* posix;
+  const char* group;
+};
+
+static const char* const DEFAULT_TIMEZONE_KEY = "europe_central";
+
+static const TimezoneInfo TIMEZONES[] = {
+  {"utc",              "UTC",               "UTC0",                           "Global"},
+
+  {"atlantic_azores",  "Azores",            "AZOT1AZOST,M3.5.0/0,M10.5.0/1",  "Europe"},
+  {"europe_west",      "Western Europe",    "WET0WEST,M3.5.0/1,M10.5.0",      "Europe"},
+  {"uk",               "United Kingdom",    "GMT0BST,M3.5.0/1,M10.5.0",       "Europe"},
+  {"europe_central",   "Central Europe",    "CET-1CEST,M3.5.0/2,M10.5.0/3",   "Europe"},
+  {"europe_east",      "Eastern Europe",    "EET-2EEST,M3.5.0/3,M10.5.0/4",   "Europe"},
+
+  {"africa_south",     "South Africa",      "SAST-2",                         "Africa & Middle East"},
+  {"middle_east_gulf", "Gulf / UAE",        "GST-4",                          "Africa & Middle East"},
+
+  {"india",            "India",             "IST-5:30",                       "Asia"},
+  {"thailand",         "Thailand / ICT",    "ICT-7",                          "Asia"},
+  {"china",            "China",             "CST-8",                          "Asia"},
+  {"asia_tokyo",       "Japan",             "JST-9",                          "Asia"},
+  {"korea",            "South Korea",       "KST-9",                          "Asia"},
+  {"indonesia_wib",    "Indonesia (WIB)",   "WIB-7",                          "Asia"},
+  {"indonesia_wita",   "Indonesia (WITA)",  "WITA-8",                         "Asia"},
+  {"indonesia_wit",    "Indonesia (WIT)",   "WIT-9",                          "Asia"},
+
+  {"us_eastern",       "US Eastern",        "EST5EDT,M3.2.0/2,M11.1.0/2",     "North America"},
+  {"us_central",       "US Central",        "CST6CDT,M3.2.0/2,M11.1.0/2",     "North America"},
+  {"us_mountain",      "US Mountain",       "MST7MDT,M3.2.0/2,M11.1.0/2",     "North America"},
+  {"us_arizona",       "US Arizona",        "MST7",                           "North America"},
+  {"us_pacific",       "US Pacific",        "PST8PDT,M3.2.0/2,M11.1.0/2",     "North America"},
+  {"alaska",           "Alaska",            "AKST9AKDT,M3.2.0/2,M11.1.0/2",   "North America"},
+  {"hawaii",           "Hawaii",            "HST10",                          "North America"},
+  {"canada_atlantic",  "Canada Atlantic",   "AST4ADT,M3.2.0/2,M11.1.0/2",     "North America"},
+
+  {"brazil_east",      "Brazil East",       "BRT3",                           "South America"},
+  {"argentina",        "Argentina",         "ART3",                           "South America"},
+
+  {"australia_perth",  "Australia West",    "AWST-8",                         "Australia & Oceania"},
+  {"australia_darwin", "Australia Central", "ACST-9:30",                      "Australia & Oceania"},
+  {"australia_sydney", "Australia East",    "AEST-10AEDT,M10.1.0,M4.1.0/3",   "Australia & Oceania"},
+  {"new_zealand",      "New Zealand",       "NZST-12NZDT,M9.5.0/2,M4.1.0/3",  "Australia & Oceania"}
+};
+
+static const TimezoneInfo* findTimezone(const String& key) {
+  for (const TimezoneInfo& tz : TIMEZONES) {
+    if (key == tz.key) return &tz;
+  }
+  return nullptr;
+}
+
+static const TimezoneInfo& timezoneOrDefault(const String& key) {
+  const TimezoneInfo* tz = findTimezone(key);
+  return tz ? *tz : *findTimezone(DEFAULT_TIMEZONE_KEY);
+}
+
 const char* timezonePosixByKey(const String& key) {
-  if (key == "utc") return "UTC0";
-  if (key == "atlantic_azores") return "AZOT1AZOST,M3.5.0/0,M10.5.0/1";
-  if (key == "europe_west") return "WET0WEST,M3.5.0/1,M10.5.0";
-  if (key == "uk") return "GMT0BST,M3.5.0/1,M10.5.0";
-  if (key == "europe_central") return "CET-1CEST,M3.5.0/2,M10.5.0/3";
-  if (key == "europe_east") return "EET-2EEST,M3.5.0/3,M10.5.0/4";
-  if (key == "africa_south") return "SAST-2";
-  if (key == "middle_east_gulf") return "GST-4";
-  if (key == "india") return "IST-5:30";
-  if (key == "thailand") return "ICT-7";
-  if (key == "china") return "CST-8";
-  if (key == "us_eastern") return "EST5EDT,M3.2.0/2,M11.1.0/2";
-  if (key == "us_central") return "CST6CDT,M3.2.0/2,M11.1.0/2";
-  if (key == "us_mountain") return "MST7MDT,M3.2.0/2,M11.1.0/2";
-  if (key == "us_arizona") return "MST7";
-  if (key == "us_pacific") return "PST8PDT,M3.2.0/2,M11.1.0/2";
-  if (key == "alaska") return "AKST9AKDT,M3.2.0/2,M11.1.0/2";
-  if (key == "hawaii") return "HST10";
-  if (key == "canada_atlantic") return "AST4ADT,M3.2.0/2,M11.1.0/2";
-  if (key == "brazil_east") return "BRT3";
-  if (key == "argentina") return "ART3";
-  if (key == "asia_tokyo") return "JST-9";
-  if (key == "korea") return "KST-9";
-  if (key == "australia_perth") return "AWST-8";
-  if (key == "australia_darwin") return "ACST-9:30";
-  if (key == "australia_sydney") return "AEST-10AEDT,M10.1.0,M4.1.0/3";
-  if (key == "new_zealand") return "NZST-12NZDT,M9.5.0/2,M4.1.0/3";
-  return "CET-1CEST,M3.5.0/2,M10.5.0/3";
+  return timezoneOrDefault(key).posix;
 }
 
 const char* timezoneLabelByKey(const String& key) {
-  if (key == "utc") return "UTC";
-  if (key == "atlantic_azores") return "Azores";
-  if (key == "europe_west") return "Western Europe";
-  if (key == "uk") return "United Kingdom";
-  if (key == "europe_central") return "Central Europe";
-  if (key == "europe_east") return "Eastern Europe";
-  if (key == "africa_south") return "South Africa";
-  if (key == "middle_east_gulf") return "Gulf / UAE";
-  if (key == "india") return "India";
-  if (key == "thailand") return "Thailand / ICT";
-  if (key == "china") return "China";
-  if (key == "us_eastern") return "US Eastern";
-  if (key == "us_central") return "US Central";
-  if (key == "us_mountain") return "US Mountain";
-  if (key == "us_arizona") return "US Arizona";
-  if (key == "us_pacific") return "US Pacific";
-  if (key == "alaska") return "Alaska";
-  if (key == "hawaii") return "Hawaii";
-  if (key == "canada_atlantic") return "Canada Atlantic";
-  if (key == "brazil_east") return "Brazil East";
-  if (key == "argentina") return "Argentina";
-  if (key == "asia_tokyo") return "Japan";
-  if (key == "korea") return "South Korea";
-  if (key == "australia_perth") return "Australia West";
-  if (key == "australia_darwin") return "Australia Central";
-  if (key == "australia_sydney") return "Australia East";
-  if (key == "new_zealand") return "New Zealand";
-  return "Central Europe";
+  return timezoneOrDefault(key).label;
 }
 
 String sanitizeTimezoneKey(const String& key) {
-  const char* supported[] = {
-    "utc", "atlantic_azores", "europe_west", "uk", "europe_central", "europe_east",
-    "africa_south", "middle_east_gulf", "india", "thailand", "china",
-    "us_eastern", "us_central", "us_mountain", "us_arizona", "us_pacific",
-    "alaska", "hawaii", "canada_atlantic", "brazil_east", "argentina",
-    "asia_tokyo", "korea", "australia_perth", "australia_darwin",
-    "australia_sydney", "new_zealand"
-  };
-  for (const char* supportedKey : supported) {
-    if (key == supportedKey) return key;
-  }
-  return "europe_central";
+  return String(timezoneOrDefault(key).key);
 }
 
 void applyDeviceTimezoneByKey(const String& key) {
@@ -336,38 +333,26 @@ void applyDeviceTimezoneByKey(const String& key) {
 }
 
 void appendTimezoneOptions(String& page, const String& selectedKey) {
-  struct TimezoneGroup {
-    const char* label;
-    const char* keys[8];
-    int count;
-  };
+  const char* currentGroup = nullptr;
 
-  const TimezoneGroup groups[] = {
-    {"Global", {"utc"}, 1},
-    {"Europe", {"atlantic_azores", "europe_west", "uk", "europe_central", "europe_east"}, 5},
-    {"Africa & Middle East", {"africa_south", "middle_east_gulf"}, 2},
-    {"Asia", {"india", "thailand", "china", "asia_tokyo", "korea"}, 5},
-    {"North America", {"us_eastern", "us_central", "us_mountain", "us_arizona", "us_pacific", "alaska", "hawaii", "canada_atlantic"}, 8},
-    {"South America", {"brazil_east", "argentina"}, 2},
-    {"Australia & Oceania", {"australia_perth", "australia_darwin", "australia_sydney", "new_zealand"}, 4}
-  };
-
-  for (const TimezoneGroup& group : groups) {
-    page += "<optgroup label='";
-    page += group.label;
-    page += "'>";
-    for (int i = 0; i < group.count; i++) {
-      const char* key = group.keys[i];
-      page += "<option value='";
-      page += key;
-      page += "'";
-      if (selectedKey == key) page += " selected";
-      page += ">";
-      page += timezoneLabelByKey(key);
-      page += "</option>";
+  for (const TimezoneInfo& tz : TIMEZONES) {
+    if (!currentGroup || strcmp(currentGroup, tz.group) != 0) {
+      if (currentGroup) page += "</optgroup>";
+      page += "<optgroup label='";
+      page += tz.group;
+      page += "'>";
+      currentGroup = tz.group;
     }
-    page += "</optgroup>";
+    page += "<option value='";
+    page += tz.key;
+    page += "'";
+    if (selectedKey == tz.key) page += " selected";
+    page += ">";
+    page += tz.label;
+    page += "</option>";
   }
+
+  if (currentGroup) page += "</optgroup>";
 }
 
 void getHomeSlotRect(int slot, int& x, int& y, int& w, int& h) {
@@ -447,6 +432,36 @@ static int sunriseMin = -1;
 static int sunsetMin  = -1;
 static int lastSunYmd = -1;
 static time_t lastSyncTime = 0;
+
+// Network fetches block loop(), so keep timeouts short and back off after
+// failures instead of retrying (and freezing the UI) on every data tick.
+static const uint16_t HTTP_TIMEOUT_MS = 4000;
+
+struct FetchBackoff {
+  time_t nextTry = 0;
+  uint8_t failures = 0;
+
+  bool due(time_t now) const { return now >= nextTry; }
+
+  void record(bool ok, time_t now) {
+    if (ok) {
+      failures = 0;
+      nextTry = now;
+      return;
+    }
+    if (failures < 4) failures++;
+    nextTry = now + (time_t)(30UL << failures);  // 60s, 120s, 240s, then 480s
+  }
+
+  void reset() {
+    failures = 0;
+    nextTry = 0;
+  }
+};
+
+static FetchBackoff sunBackoff;
+static FetchBackoff weatherBackoff;
+static FetchBackoff kpBackoff;
 
 // =========================================================
 // SLEEP / BACKLIGHT
@@ -1068,6 +1083,9 @@ void resetDataCaches() {
   lastSunYmd = -1;
   lastWeatherFetch = 0;
   lastKpFetch = 0;
+  sunBackoff.reset();
+  weatherBackoff.reset();
+  kpBackoff.reset();
   dataDirty = true;
   pageDirty = true;
 }
@@ -1122,6 +1140,13 @@ bool touchNewPress(int& tx, int& ty) {
 // =========================================================
 // API
 // =========================================================
+static bool beginHttp(HTTPClient& http, WiFiClientSecure& client, const String& url) {
+  client.setTimeout(HTTP_TIMEOUT_MS / 1000);  // seconds on WiFiClientSecure
+  http.setConnectTimeout(HTTP_TIMEOUT_MS);
+  http.setTimeout(HTTP_TIMEOUT_MS);
+  return http.begin(client, url);
+}
+
 bool fetchSunriseSunset() {
   if (WiFi.status() != WL_CONNECTED) return false;
 
@@ -1132,7 +1157,7 @@ bool fetchSunriseSunset() {
                "&lng=" + String(LNG, 4) + "&formatted=0";
 
   HTTPClient http;
-  if (!http.begin(client, url)) return false;
+  if (!beginHttp(http, client, url)) return false;
 
   int code = http.GET();
   if (code != 200) {
@@ -1143,8 +1168,14 @@ bool fetchSunriseSunset() {
   String body = http.getString();
   http.end();
 
-  StaticJsonDocument<1024> doc;
-  if (deserializeJson(doc, body)) return false;
+  // Keep only the two fields we use so the document can't run out of memory
+  // when the API adds or lengthens other fields (twilight times, day length...).
+  StaticJsonDocument<64> filter;
+  filter["results"]["sunrise"] = true;
+  filter["results"]["sunset"] = true;
+
+  StaticJsonDocument<512> doc;
+  if (deserializeJson(doc, body, DeserializationOption::Filter(filter))) return false;
 
   const char* sunriseStr = doc["results"]["sunrise"];
   const char* sunsetStr  = doc["results"]["sunset"];
@@ -1192,8 +1223,10 @@ void ensureSunTimesForToday() {
   int ymd = ymdFromLocal(nowT);
 
   if ((sunriseMin < 0 || sunsetMin < 0 || ymd != lastSunYmd) &&
-      WiFi.status() == WL_CONNECTED) {
-    if (fetchSunriseSunset()) dataDirty = true;
+      WiFi.status() == WL_CONNECTED && sunBackoff.due(nowT)) {
+    bool ok = fetchSunriseSunset();
+    sunBackoff.record(ok, time(nullptr));
+    if (ok) dataDirty = true;
   }
 }
 
@@ -1211,7 +1244,7 @@ bool fetchWeather() {
                "&forecast_days=1&timezone=auto&wind_speed_unit=ms";
 
   HTTPClient http;
-  if (!http.begin(client, url)) return false;
+  if (!beginHttp(http, client, url)) return false;
 
   int code = http.GET();
   if (code != 200) {
@@ -1269,9 +1302,94 @@ void ensureWeather() {
   time_t nowT = time(nullptr);
   if ((isnan(tempC) || isnan(tempMinC) || isnan(tempMaxC) || isnan(precipMm) || isnan(windSpeedMs) || isnan(windDirectionDeg) || isnan(uvIndex) ||
        (nowT - lastWeatherFetch) > WEATHER_INTERVAL_SEC) &&
-      WiFi.status() == WL_CONNECTED) {
-    if (fetchWeather()) dataDirty = true;
+      WiFi.status() == WL_CONNECTED && weatherBackoff.due(nowT)) {
+    bool ok = fetchWeather();
+    weatherBackoff.record(ok, time(nullptr));
+    if (ok) dataDirty = true;
   }
+}
+
+// Keeps only the last CAP bytes written to it, so a large response can be
+// streamed through HTTPClient without holding the whole body in memory.
+class TailCapture : public Stream {
+ public:
+  static const size_t CAP = 512;
+
+  size_t write(uint8_t b) override {
+    buf[total % CAP] = (char)b;
+    total++;
+    return 1;
+  }
+
+  size_t write(const uint8_t* data, size_t len) override {
+    for (size_t i = 0; i < len; i++) write(data[i]);
+    return len;
+  }
+
+  int available() override { return 0; }
+  int read() override { return -1; }
+  int peek() override { return -1; }
+
+  String tail() const {
+    size_t n = total < CAP ? total : CAP;
+    String out;
+    out.reserve(n);
+    for (size_t i = total - n; i < total; i++) out += buf[i % CAP];
+    return out;
+  }
+
+ private:
+  char buf[CAP];
+  size_t total = 0;
+};
+
+// Kp may arrive as a number or a numeric string depending on the feed format.
+static bool parseKpValue(JsonVariantConst v, float& out) {
+  double value;
+  if (v.is<const char*>()) {
+    const char* s = v.as<const char*>();
+    char* end = nullptr;
+    value = strtod(s, &end);
+    if (end == s || *end != '\0') return false;
+  } else if (v.is<float>()) {
+    value = v.as<float>();
+  } else {
+    return false;
+  }
+
+  if (!(value >= 0.0 && value <= 9.0)) return false;
+  out = (float)value;
+  return true;
+}
+
+// The NOAA feed lists readings oldest to newest, so the last row is the
+// current one. Supports both row layouts:
+//   [["time_tag","Kp",...], ["2026-01-01 00:00:00.000","1.67",...], ...]
+//   [{"time_tag":"...","Kp":1.67,...}, ...]
+static bool parseKpFromTail(const String& tail, float& out) {
+  if (tail.indexOf('{') >= 0) {
+    int close = tail.lastIndexOf('}');
+    int open = close > 0 ? tail.lastIndexOf('{', close) : -1;
+    if (open < 0 || close <= open) return false;
+
+    StaticJsonDocument<64> filter;
+    filter["Kp"] = true;
+    StaticJsonDocument<256> doc;
+    if (deserializeJson(doc, tail.substring(open, close + 1), DeserializationOption::Filter(filter))) return false;
+
+    JsonVariant kp = doc["Kp"];
+    return parseKpValue(kp, out);
+  }
+
+  int open = tail.lastIndexOf('[');
+  int close = open >= 0 ? tail.indexOf(']', open) : -1;
+  if (open < 0 || close < 0) return false;
+
+  StaticJsonDocument<256> doc;
+  if (deserializeJson(doc, tail.substring(open, close + 1))) return false;
+
+  JsonVariant kp = doc[1];
+  return parseKpValue(kp, out);
 }
 
 bool fetchKpIndex() {
@@ -1281,7 +1399,7 @@ bool fetchKpIndex() {
   client.setInsecure();
 
   HTTPClient http;
-  if (!http.begin(client, "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json")) {
+  if (!beginHttp(http, client, "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json")) {
     return false;
   }
 
@@ -1291,22 +1409,14 @@ bool fetchKpIndex() {
     return false;
   }
 
-  String body = http.getString();
+  TailCapture capture;
+  int written = http.writeToStream(&capture);
   http.end();
+  if (written <= 0) return false;
 
-  int lastRow = body.lastIndexOf('[');
-  if (lastRow < 0) return false;
-
-  int firstComma = body.indexOf(',', lastRow);
-  if (firstComma < 0) return false;
-
-  int q1 = body.indexOf('"', firstComma);
-  if (q1 < 0) return false;
-  int q2 = body.indexOf('"', q1 + 1);
-  if (q2 < 0) return false;
-
-  String kpStrLocal = body.substring(q1 + 1, q2);
-  kpIndex = kpStrLocal.toFloat();
+  float kp;
+  if (!parseKpFromTail(capture.tail(), kp)) return false;
+  kpIndex = kp;
 
   lastKpFetch = time(nullptr);
   lastSyncTime = lastKpFetch;
@@ -1316,8 +1426,10 @@ bool fetchKpIndex() {
 void ensureKpIndex() {
   time_t nowT = time(nullptr);
   if ((isnan(kpIndex) || (nowT - lastKpFetch) > KP_INTERVAL_SEC) &&
-      WiFi.status() == WL_CONNECTED) {
-    if (fetchKpIndex()) dataDirty = true;
+      WiFi.status() == WL_CONNECTED && kpBackoff.due(nowT)) {
+    bool ok = fetchKpIndex();
+    kpBackoff.record(ok, time(nullptr));
+    if (ok) dataDirty = true;
   }
 }
 
@@ -1705,6 +1817,26 @@ void drawHomeSlotWidget(int slot, bool force = false) {
   }
 }
 
+// Timer popup layout, shared by drawing and touch hit-testing so they cannot drift apart.
+static const int TIMER_BTN_W = 74;
+static const int TIMER_BTN_H = 28;
+static const int TIMER_ACTION_W = 152;
+static const int TIMER_ACTION_H = 26;
+
+static void timerPresetRect(int i, int& x, int& y, int& w, int& h) {
+  x = TIMER_MENU_X + ((i % 2 == 0) ? 14 : 112);
+  y = TIMER_MENU_Y + 54 + (i / 2) * 34;
+  w = TIMER_BTN_W;
+  h = TIMER_BTN_H;
+}
+
+static void timerActionRect(int& x, int& y, int& w, int& h) {
+  x = TIMER_MENU_X + 24;
+  y = TIMER_MENU_Y + 156;
+  w = TIMER_ACTION_W;
+  h = TIMER_ACTION_H;
+}
+
 void drawFocusMenuOverlay(bool force = false) {
   String combined = String(focusTimerRunning ? 1 : 0) + "|" + String(focusTimerFinished ? 1 : 0) +
                     "|" + String(COL_PANEL_ALT) + "|" + String(COL_PANEL) + "|" + String(COL_ACCENT);
@@ -1720,39 +1852,26 @@ void drawFocusMenuOverlay(bool force = false) {
   tft.setTextColor(COL_DIM, COL_PANEL_ALT);
   tft.drawString("Choose a session length", TIMER_MENU_X + 14, TIMER_MENU_Y + 34, 1);
 
-  const int btnW = 74;
-  const int btnH = 28;
-  const int col1X = TIMER_MENU_X + 14;
-  const int col2X = TIMER_MENU_X + 112;
-  const int row1Y = TIMER_MENU_Y + 54;
-  const int row2Y = TIMER_MENU_Y + 88;
-  const int row3Y = TIMER_MENU_Y + 122;
-
-  String labels[6];
-  const int xs[] = {col1X, col2X, col1X, col2X, col1X, col2X};
-  const int ys[] = {row1Y, row1Y, row2Y, row2Y, row3Y, row3Y};
   for (int i = 0; i < 6; i++) {
-    labels[i] = String(timerPresetMin[i]) + " min";
-  }
-
-  for (int i = 0; i < 6; i++) {
-    tft.fillRoundRect(xs[i], ys[i], btnW, btnH, 8, COL_PANEL);
-    tft.drawRoundRect(xs[i], ys[i], btnW, btnH, 8, COL_STROKE);
+    int bx, by, bw, bh;
+    timerPresetRect(i, bx, by, bw, bh);
+    String label = String(timerPresetMin[i]) + " min";
+    tft.fillRoundRect(bx, by, bw, bh, 8, COL_PANEL);
+    tft.drawRoundRect(bx, by, bw, bh, 8, COL_STROKE);
     tft.setTextColor(COL_TEXT, COL_PANEL);
-    tft.drawCentreString(labels[i].c_str(), xs[i] + btnW / 2, ys[i] + 7, 2);
+    tft.drawCentreString(label.c_str(), bx + bw / 2, by + 7, 2);
   }
 
-  const int actionY = TIMER_MENU_Y + 160;
-  const int actionW = 152;
-  const int actionX = TIMER_MENU_X + 24;
+  int actionX, actionBoxY, actionW, actionH;
+  timerActionRect(actionX, actionBoxY, actionW, actionH);
   const char* actionLabel = focusTimerRunning ? "Stop" : (focusTimerFinished ? "Reset" : nullptr);
   uint16_t actionColor = focusTimerRunning ? COL_RED : COL_ACCENT;
 
   if (actionLabel) {
-    tft.fillRoundRect(actionX, actionY - 4, actionW, 26, 8, COL_PANEL);
-    tft.drawRoundRect(actionX, actionY - 4, actionW, 26, 8, actionColor);
+    tft.fillRoundRect(actionX, actionBoxY, actionW, actionH, 8, COL_PANEL);
+    tft.drawRoundRect(actionX, actionBoxY, actionW, actionH, 8, actionColor);
     tft.setTextColor(actionColor, COL_PANEL);
-    tft.drawCentreString(actionLabel, actionX + actionW / 2, actionY + 4, 2);
+    tft.drawCentreString(actionLabel, actionX + actionW / 2, actionBoxY + 8, 2);
   } else {
     tft.setTextColor(COL_DIM, COL_PANEL_ALT);
     tft.drawCentreString("Tap outside to close", TIMER_MENU_X + TIMER_MENU_W / 2, TIMER_MENU_Y + TIMER_MENU_H - 13, 1);
@@ -2101,38 +2220,20 @@ bool handleFocusMenuTouch(int x, int y) {
     return true;
   }
 
-  struct ButtonHit {
-    int x;
-    int y;
-    int w;
-    int h;
-    int minutes;
-  };
-
-  const ButtonHit buttons[] = {
-    {34, 124, 74, 28, timerPresetMin[0]},
-    {132, 124, 74, 28, timerPresetMin[1]},
-    {34, 158, 74, 28, timerPresetMin[2]},
-    {132, 158, 74, 28, timerPresetMin[3]},
-    {34, 192, 74, 28, timerPresetMin[4]},
-    {132, 192, 74, 28, timerPresetMin[5]}
-  };
-
-  for (const ButtonHit& btn : buttons) {
-    if (x >= btn.x && x < btn.x + btn.w && y >= btn.y && y < btn.y + btn.h) {
-      startFocusTimer(btn.minutes);
+  for (int i = 0; i < 6; i++) {
+    int bx, by, bw, bh;
+    timerPresetRect(i, bx, by, bw, bh);
+    if (x >= bx && x < bx + bw && y >= by && y < by + bh) {
+      startFocusTimer(timerPresetMin[i]);
       pageDirty = true;
       return true;
     }
   }
 
-  if ((focusTimerRunning || focusTimerFinished) && x >= 44 && x < 196 && y >= 224 && y < 250) {
-    if (focusTimerRunning || focusTimerFinished) {
-      resetFocusTimer();
-    } else {
-      focusMenuOpen = false;
-      cacheTimerMenu = "";
-    }
+  int ax, ay, aw, ah;
+  timerActionRect(ax, ay, aw, ah);
+  if ((focusTimerRunning || focusTimerFinished) && x >= ax && x < ax + aw && y >= ay && y < ay + ah) {
+    resetFocusTimer();
     pageDirty = true;
     return true;
   }

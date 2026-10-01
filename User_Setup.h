@@ -4,7 +4,7 @@
 #define TFT_HEIGHT 320
 
 
-//Had to change RGB Order
+// This panel needs BGR colour order
 #define TFT_RGB_ORDER TFT_BGR
 
 //
@@ -20,12 +20,12 @@
 #define TFT_BACKLIGHT_ON HIGH
 
 // ---- Font loading ----
-#define LOAD_GLCD   // Font 1. Dette er den viktigste
-#define LOAD_FONT2  // Små tall/tekst
+#define LOAD_GLCD   // Font 1, the most important one
+#define LOAD_FONT2  // Small digits/text
 #define LOAD_FONT4  // Medium
-#define LOAD_FONT6  // Stor
+#define LOAD_FONT6  // Large
 #define LOAD_FONT7  // 7-segment
-#define LOAD_FONT8  // Ekstra stor
+#define LOAD_FONT8  // Extra large
 #define LOAD_GFXFF  // FreeFonts
 
 #define SPI_FREQUENCY  40000000
